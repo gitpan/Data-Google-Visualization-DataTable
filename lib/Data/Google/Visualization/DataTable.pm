@@ -1,5 +1,5 @@
 package Data::Google::Visualization::DataTable;
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 use strict;
 use warnings;
@@ -15,7 +15,7 @@ Data::Google::Visualization::DataTable - Easily create Google DataTable objects
 
 =head1 VERSION
 
-version 0.04
+version 0.05
 
 =head1 DESCRIPTION
 
@@ -372,7 +372,8 @@ sub add_rows {
 
 			# Convert number
 			} elsif ( $type eq 'number' ) {
-				$cell->{'v'} += 0;
+				$cell->{'v'} = 0 unless $cell->{'v'}; # Force false values to 0
+				$cell->{'v'} += 0; # Force numeric for JSON encoding
 				push(@cells, $self->json_xs_object->encode( $cell ) );
 
 			# Convert string

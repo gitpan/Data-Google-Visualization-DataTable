@@ -13,4 +13,4 @@ meta-spec:
 name: Data-Google-Visualization-DataTable
 requires:
   JSON::XS: 2.0
-version: 0.04
+version: 0.05

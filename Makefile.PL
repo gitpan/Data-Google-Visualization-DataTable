@@ -21,7 +21,7 @@ my %WriteMakefileArgs = (
                        'BUILD_REQUIRES' => {},
                        'ABSTRACT' => 'Easily create Google DataTable objects',
                        'EXE_FILES' => [],
-                       'VERSION' => '0.04',
+                       'VERSION' => '0.05',
                        'PREREQ_PM' => {
                                         'JSON::XS' => '2.0'
                                       },
