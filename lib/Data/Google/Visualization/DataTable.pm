@@ -1,4 +1,5 @@
 package Data::Google::Visualization::DataTable;
+our $VERSION = '0.04';
 
 use strict;
 use warnings;
@@ -8,11 +9,13 @@ use Storable qw(dclone);
 use JSON::XS;
 use Time::Local;
 
-our $VERSION = '0.03';
-
 =head1 NAME
 
 Data::Google::Visualization::DataTable - Easily create Google DataTable objects
+
+=head1 VERSION
+
+version 0.04
 
 =head1 DESCRIPTION
 

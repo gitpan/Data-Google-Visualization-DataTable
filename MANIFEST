@@ -1,12 +1,15 @@
-eg/twitter.cgi
-eg/twitter.tt2
+CHANGES
+LICENSE
+MANIFEST
+META.yml
+Makefile.PL
 README
 TODO
-t/000_use.t
+dist.ini
+eg/twitter.cgi
+eg/twitter.tt2
+lib/Data/Google/Visualization/DataTable.pm
 t/010_add_columns.t
 t/020_common_exceptions.t
-Makefile.PL
-lib/Data/Google/Visualization/DataTable.pm
-MANIFEST
-CHANGES
-META.yml                                 Module meta-data (added by MakeMaker)
+t/release-pod-coverage.t
+t/release-pod-syntax.t
