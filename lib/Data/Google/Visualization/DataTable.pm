@@ -1,5 +1,7 @@
 package Data::Google::Visualization::DataTable;
-our $VERSION = '0.05';
+BEGIN {
+  $Data::Google::Visualization::DataTable::VERSION = '0.06';
+}
 
 use strict;
 use warnings;
@@ -15,7 +17,7 @@ Data::Google::Visualization::DataTable - Easily create Google DataTable objects
 
 =head1 VERSION
 
-version 0.05
+version 0.06
 
 =head1 DESCRIPTION
 
@@ -116,8 +118,9 @@ I<cells>, or an array-ref where the values are I<cells>.
 
 I<Cells> can be specified in several ways, but the best way is using a hash-ref
 that exactly conforms to the API. C<v> is NOT checked against your data type -
-but we will attempt to convert it. C<f> needs to be a string if you provide it.
-C<p> will be bassed directly to L<JSON::XS>.
+but we will attempt to convert it. If you pass in an undefined value, it will
+return a JS 'null', regardless of the data type. C<f> needs to be a string if
+you provide it. C<p> will be bassed directly to L<JSON::XS>.
 
 For any of the date-like fields (C<date>, C<datetime>, C<timeofday>), you can
 pass in 4 types of values. We accept L<DateTime> objects, L<Time::Piece>
@@ -136,7 +139,8 @@ For non-date fields, if you specify a cell using a string or number, rather than
 a hashref, that'll be mapped to a cell with C<v> set to the string you
 specified.
 
-C<boolean>: we test the value you pass in for truth, the Perl way.
+C<boolean>: we test the value you pass in for truth, the Perl way, although
+undef values will come out as null, not 0.
 
 =head1 METHODS
 
@@ -244,6 +248,8 @@ sub add_columns {
 	my $i = 0;
 	for my $column ( @{ $self->{'columns'} } ) {
 
+		$self->{'column_count'}++;
+
 		# Encode as JSON
 		delete $column->{'json'};
 		my $column_json = $self->json_xs_object->encode( $column );
@@ -309,7 +315,7 @@ sub add_rows {
 		# Map array-refs to columns
 		} elsif ( ref( $row ) eq 'ARRAY' ) {
 
-			# Populate @columns with the data-type and calue
+			# Populate @columns with the data-type and value
 			my $i = 0;
 			for my $col (@$row) {
 				$columns[ $i ] = [
@@ -324,34 +330,44 @@ sub add_rows {
 			croak "Rows must be array-refs or hash-refs: $row";
 		}
 
+		# Force the length of columns to be the same as actual columns, to
+		# handle undef values better.
+		$columns[ $self->{'column_count'} - 1 ] = undef
+			unless defined $columns[ $self->{'column_count'} - 1 ];
+
 		# Convert each cell in to the long cell format
 		my @formatted_columns;
 		for ( @columns ) {
-			my ($type, $column) = @$_;
+			if ( $_ ) {
+				my ($type, $column) = @$_;
 
-			if ( ref( $column ) eq 'HASH' ) {
-				# Check f is a simple string if defined
-				if ( defined($column->{'f'}) && ref( $column->{'f'} ) ) {
-					croak "Cell's 'f' values must be strings: " .
-						$column->{'f'};
-				}
-				# If p is defined, check it serializes
-				if ( defined($column->{'p'}) ) {
-					croak "'p' must be a reference"
-						unless ref( $column->{'p'} );
-					eval { $self->json_xs_object->encode( $column->{'p'} ) };
-					croak "Serializing 'p' failed: $@" if $@;
-				}
-				# Complain about any unauthorized keys
-				if ( $self->pedantic ) {
-					for my $key ( keys %$column ) {
-						carp "'$key' is not a recognized key"
-							unless $key =~ m/^[fvp]$/;
+				if ( ref( $column ) eq 'HASH' ) {
+					# Check f is a simple string if defined
+					if ( defined($column->{'f'}) && ref( $column->{'f'} ) ) {
+						croak "Cell's 'f' values must be strings: " .
+							$column->{'f'};
 					}
+					# If p is defined, check it serializes
+					if ( defined($column->{'p'}) ) {
+						croak "'p' must be a reference"
+							unless ref( $column->{'p'} );
+						eval { $self->json_xs_object->encode( $column->{'p'} ) };
+						croak "Serializing 'p' failed: $@" if $@;
+					}
+					# Complain about any unauthorized keys
+					if ( $self->pedantic ) {
+						for my $key ( keys %$column ) {
+							carp "'$key' is not a recognized key"
+								unless $key =~ m/^[fvp]$/;
+						}
+					}
+					push( @formatted_columns, [ $type, $column ] );
+				} else {
+					push( @formatted_columns, [ $type, { v => $column } ] );
 				}
-				push( @formatted_columns, [ $type, $column ] );
+			# Undefined that become nulls
 			} else {
-				push( @formatted_columns, [ $type, { v => $column } ] );
+				push( @formatted_columns, [ 'null', { v => undef } ] );
 			}
 		}
 
@@ -365,8 +381,12 @@ sub add_rows {
 				$cell->{'f'} .= '';
 			}
 
+			# Handle null/undef
+			if ( ! defined($cell->{'v'}) ) {
+				push(@cells, $self->json_xs_object->encode( $cell ) );
+
 			# Convert boolean
-			if ( $type eq 'boolean' ) {
+			} elsif ( $type eq 'boolean' ) {
 				$cell->{'v'} = $cell->{'v'} ? \1 : \0;
 				push(@cells, $self->json_xs_object->encode( $cell ) );
 
@@ -450,7 +470,7 @@ sub add_rows {
 =head2 pedantic
 
 We do some data checking for sanity, and we'll issue warnings about things the
-API considers bad data practice - using reserved words or fancy characters on
+API considers bad data practice - using reserved words or fancy characters and
 IDs so far. If you don't want that, simple say:
 
  $object->pedantic(0);
@@ -511,7 +531,7 @@ sub output_json {
 	# Rows
 	my @rows = map {
 		my $individual_row_string = join ',' .$n.$t.$t.$t, @$_;
-		'{ "c":[' .$n.$t.$t.$t. $individual_row_string .$n.$t.$t. ']}';
+		'{"c":[' .$n.$t.$t.$t. $individual_row_string .$n.$t.$t. ']}';
 	} @$rows;
 	my $rows_string = join ',' . $n . $t . $t, @rows;
 
