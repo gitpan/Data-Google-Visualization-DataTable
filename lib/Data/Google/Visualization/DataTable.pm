@@ -1,6 +1,6 @@
 package Data::Google::Visualization::DataTable;
 BEGIN {
-  $Data::Google::Visualization::DataTable::VERSION = '0.06';
+  $Data::Google::Visualization::DataTable::VERSION = '0.07';
 }
 
 use strict;
@@ -17,7 +17,7 @@ Data::Google::Visualization::DataTable - Easily create Google DataTable objects
 
 =head1 VERSION
 
-version 0.06
+version 0.07
 
 =head1 DESCRIPTION
 
@@ -88,13 +88,13 @@ familiar with L<Perl references|perlreftut> and L<Perl objects|perlboot>.>
  # Get the data...
 
  # Fancy-pants
- my $output = $self->output_json(
+ my $output = $datatable->output_json(
  	columns => ['date','number','string' ],
  	pretty  => 1,
  );
 
  # Vanilla
- my $output = $self->output_json();
+ my $output = $datatable->output_json();
 
 =head1 COLUMNS, ROWS AND CELLS
 
@@ -142,25 +142,41 @@ specified.
 C<boolean>: we test the value you pass in for truth, the Perl way, although
 undef values will come out as null, not 0.
 
+=head2 Properties
+
+Properties can be defined for the whole datatable (using C<set_properties>), for
+each column (using C<p>), for each row (using C<p>) and for each cell (again
+using C<p>). The documentation provided is a little unclear as to exactly
+what you're allowed to put in this, so we provide you ample rope and let you
+specify anything you like.
+
+When defining properties for rows, you must use the hashref method of row
+creation. If you have a column with id of C<p>, you must use C<_p> as your key
+for defining properties.
+
 =head1 METHODS
 
 =head2 new
 
-Constructor. Accepts no arguments, returns a new object.
+Constructor. Accepts a hashref of arguments, of which the only valid one
+currently is C<p> - a datatable-wide properties element (see C<Properties> above
+and the Google docs).
 
 =cut
 
 sub new {
 	my $class = shift;
+	my $args  = shift;
 	my $self = {
 		columns              => [],
 		column_mapping       => {},
 		rows                 => [],
-		json_xs              => JSON::XS->new()->canonical(1),
+		json_xs              => JSON::XS->new()->canonical(1)->allow_nonref,
 		all_columns_have_ids => 0,
 		column_count         => 0,
 		pedantic             => 1
 	};
+	$self->{'properties'} = $args->{'p'} if defined $args->{'p'};
 	bless $self, $class;
 	return $self;
 }
@@ -189,7 +205,8 @@ our %JAVASCRIPT_RESERVED = map { $_ => 1 } qw(
 sub add_columns {
 	my ($self, @columns) = @_;
 
-	croak "You can't add columns once you've added rows" if @{$self->{'rows'}};
+	croak "You can't add columns once you've added rows"
+		if @{$self->{'rows'}};
 
 	# Add the columns to our internal store
 	for my $column ( @columns ) {
@@ -208,7 +225,6 @@ sub add_columns {
 
 		# Check the 'p' column is ok if it was provided, and convert now to JSON
 		if ( defined($column->{'p'}) ) {
-			croak "'p' must be a reference" unless ref( $column->{'p'} );
 			eval { $self->json_xs_object->encode( $column->{'p'} ) };
 			croak "Serializing 'p' failed: $@" if $@;
 		}
@@ -287,9 +303,17 @@ sub add_rows {
 	for my $row (@rows_to_add) {
 
 		my @columns;
+		my $properties;
 
 		# Map hash-refs to columns
 		if ( ref( $row ) eq 'HASH' ) {
+
+			# Grab the properties, if they exist
+			if ( exists $self->{'column_mapping'}->{'p'} ) {
+				$properties = delete $row->{'_p'};
+			} else {
+				$properties = delete $row->{'p'};
+			}
 
 			# We can't be going forward unless they specified IDs for each of
 			# their columns
@@ -298,7 +322,8 @@ sub add_rows {
 
 			# Loop through the keys, populating @columns
 			for my $key ( keys %$row ) {
-				# Get the relevant column index for the key
+				# Get the relevant column index for the key, or handle 'p'
+				# properly
 				unless ( exists $self->{'column_mapping'}->{ $key } ) {
 					croak "Couldn't find a column with id '$key'";
 				}
@@ -461,7 +486,10 @@ sub add_rows {
 			}
 		}
 
-		push( @{ $self->{'rows'} }, \@cells );
+		my %data = ( cells => \@cells );
+		$data{'properties'} = $properties if defined $properties;
+
+		push( @{ $self->{'rows'} }, \%data );
 	}
 
 	return $self;
@@ -483,6 +511,18 @@ sub pedantic {
 	my ($self, $arg) = @_;
 	$self->{'pedantic'} = $arg if defined $arg;
 	return $self->{'pedantic'};
+}
+
+=head2 set_properties
+
+Sets the datatable-wide properties value. See the Google docs.
+
+=cut
+
+sub set_properties {
+	my ( $self, $arg ) = @_;
+	$self->{'properties'} = $arg;
+	return $self->{'properties'};
 }
 
 =head2 json_xs_object
@@ -530,20 +570,43 @@ sub output_json {
 
 	# Rows
 	my @rows = map {
-		my $individual_row_string = join ',' .$n.$t.$t.$t, @$_;
-		'{"c":[' .$n.$t.$t.$t. $individual_row_string .$n.$t.$t. ']}';
+		my $tt = $t x 3;
+		# Turn the cells in to constituent values
+		my $individual_row_string = join ',' .$n.$tt.$t, @{$_->{'cells'}};
+		# Put together the output itself
+		my $output =
+			'{' .$n.
+			$tt. '"c":[' .$n.
+			$tt.$t. $individual_row_string .$n.
+			$tt.']';
+
+		# Add properties
+		if ( $_->{'properties'} ) {
+			my $properties = $self->_encode_properties( $_->{'properties'} );
+			$output .= ',' .$n.$tt.'"p":' . $properties;
+		}
+
+		$output .= $n.$t.$t.'}';
+		$output;
 	} @$rows;
 	my $rows_string = join ',' . $n . $t . $t, @rows;
 
-	return
+	my $return =
 		'{' .$n.
 		$t.     '"cols": [' .$n.
 		$t.     $t.    $columns_string .$n.
 		$t.     '],' .$n.
 		$t.     '"rows": [' .$n.
 		$t.     $t.    $rows_string .$n.
-		$t.     ']' .$n.
-		'}';
+		$t.     ']';
+
+	if ( defined $self->{'properties'} ) {
+		my $properties = $self->_encode_properties( $self->{'properties'} );
+		$return .= ',' .$n.$t.'"p":' . $properties;
+	}
+
+	$return .= $n.'}';
+	return $return;
 }
 
 sub _select_data {
@@ -576,12 +639,15 @@ sub _select_data {
 		# Grab the row selection
 		my @new_rows;
 		for my $original_row (@$rows) {
-			my @new_row;
+			my @new_cells;
 			for my $index (@column_spec) {
-				my $column = splice( @{$original_row}, $index, 1, '' );
-				push(@new_row, $column);
+				my $column = splice( @{$original_row->{'cells'}}, $index, 1, '' );
+				push(@new_cells, $column);
 			}
-			push(@new_rows, \@new_row);
+			my $new_row = $original_row;
+			$new_row->{'cells'} = \@new_cells;
+
+			push(@new_rows, $new_row);
 		}
 
 		$rows = \@new_rows;
@@ -591,11 +657,26 @@ sub _select_data {
 	return ( $columns, $rows );
 }
 
+sub _encode_properties {
+	my ( $self, $properties ) = @_;
+	return $self->json_xs_object->encode( $properties );
+}
+
 =head1 BUG BOUNTY
 
 Find a reproducible bug, file a bug report, and I (Peter Sergeant) will donate
 $10 to The Perl Foundation (or Wikipedia). Feature Requests are not bugs :-)
 Offer subject to author's discretion...
+
+$20 donated 31Dec2010 to TPF re L<properties handling bug|https://rt.cpan.org/Ticket/Display.html?id=64356>
+
+$10 donated 11Nov2010 to TPF re L<null display bug|https://rt.cpan.org/Ticket/Display.html?id=62899>
+
+=head1 SUPPORT
+
+If you find a bug, please use
+L<this modules page on the CPAN bug tracker|https://rt.cpan.org/Ticket/Create.html?Queue=Data-Google-Visualization-DataTable>
+to raise it, or I might never see.
 
 =head1 AUTHOR
 
@@ -610,6 +691,8 @@ L<Python library that does the same thing|http://code.google.com/p/google-visual
 L<JSON::XS> - The underlying module
 
 L<Google Visualization API|http://code.google.com/apis/visualization/documentation/reference.html#dataparam>.
+
+L<Github Page for this code|https://github.com/sheriff/data-google-visualization-datatable-perl>
 
 =head1 COPYRIGHT
 
