@@ -1,0 +1,57 @@
+Content-type: text/html
+
+<html>
+  <head>
+    <script type='text/javascript' src='http://www.google.com/jsapi'></script>
+    <script type='text/javascript'>
+      google.load('visualization', '1', {packages:['table']});
+      google.setOnLoadCallback(drawTable);
+      function drawTable() {
+		var data = new google.visualization.DataTable( {
+    "cols": [
+        {"id":"name","label":"Name","type":"string"},
+        {"id":"followers","label":"Followers","type":"number"},
+        {"id":"posted","label":"Last Updated","type":"datetime"},
+        {"id":"tweet","label":"Last Tweet","type":"string"},
+        {"id":"retweet","label":"Retweet?","type":"boolean"}
+    ],
+    "rows": [
+        {
+            "c":[
+                {"f":"Planet Perl","v":"PlanetPerl"},
+                {"v":164},
+                {"v":new Date( 2011, 2, 21, 2, 6, 25 )},
+                {"v":"Planet Perl is going dormant: Planet Perl is going dormant.  This will be the last post there for a while.... http://bit.ly/eqkvfx #perl"},
+                {"v":false}
+            ]
+        },
+        {
+            "c":[
+                {"f":"Matt S Trout","v":"shadowcat_mst"},
+                {"v":564},
+                {"v":new Date( 2011, 4, 6, 2, 1, 15 )},
+                {"v":"novell fire mono division, then sue microsoft. acquisition thereof going entirely well then."},
+                {"v":false}
+            ]
+        },
+        {
+            "c":[
+                {"f":"Perl Twit Interface","v":"perl_api"},
+                {"v":784},
+                {"v":new Date( 2011, 2, 31, 21, 22, 54 )},
+                {"v":"Shipped Net::Twitter 3.17001 to CPAN. Fixes an intermittent bug in AutoCursor (caused by Class::MOP anon class caching)."},
+                {"v":false}
+            ]
+        }
+    ]
+} );
+		var table = new google.visualization.Table(document.getElementById('table_div'));
+       	table.draw(data, {showRowNumber: true});
+      }
+    </script>
+  </head>
+
+  <body>
+    <div id='table_div'></div>
+  </body>
+</html>

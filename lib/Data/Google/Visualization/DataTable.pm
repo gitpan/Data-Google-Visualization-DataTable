@@ -1,6 +1,6 @@
 package Data::Google::Visualization::DataTable;
 BEGIN {
-  $Data::Google::Visualization::DataTable::VERSION = '0.07';
+  $Data::Google::Visualization::DataTable::VERSION = '0.08';
 }
 
 use strict;
@@ -17,7 +17,7 @@ Data::Google::Visualization::DataTable - Easily create Google DataTable objects
 
 =head1 VERSION
 
-version 0.07
+version 0.08
 
 =head1 DESCRIPTION
 
@@ -30,7 +30,7 @@ Google's excellent Visualization suite requires you to format your Javascript
 data very carefully. It's entirely possible to do this by hand, especially with
 the help of the most excellent L<JSON::XS> but it's a bit fiddly, largely
 because Perl doesn't natively support data types and Google's API accepts a
-super-set of JSON.
+super-set of JSON - see L<JSON vs Javascript> below.
 
 This module is attempts to hide the gory details of preparing your data before
 sending it to a JSON serializer - more specifically, hiding some of the hoops
@@ -88,13 +88,13 @@ familiar with L<Perl references|perlreftut> and L<Perl objects|perlboot>.>
  # Get the data...
 
  # Fancy-pants
- my $output = $datatable->output_json(
+ my $output = $datatable->output_javascript(
  	columns => ['date','number','string' ],
  	pretty  => 1,
  );
 
  # Vanilla
- my $output = $datatable->output_json();
+ my $output = $datatable->output_javascript();
 
 =head1 COLUMNS, ROWS AND CELLS
 
@@ -197,9 +197,9 @@ our %JAVASCRIPT_RESERVED = map { $_ => 1 } qw(
 	break case catch continue default delete do else finally for function if in
 	instanceof new return switch this throw try typeof var void while with
 	abstract boolean byte char class const debugger double enum export extends
-	final float goto implements import int interface long native package private
-	protected public short static super synchronized throws transient volatile
-	const export import
+	final float goto implements import int interface long native package
+	private protected public short static super synchronized throws transient
+	volatile const export import
 );
 
 sub add_columns {
@@ -539,21 +539,28 @@ sub json_xs_object {
 	return $self->{'json_xs'};
 }
 
-=head2 output_json
+=head2 output_javascript
 
-Returns a JSON serialization of your object. You can optionally specify two
+Returns a Javascript serialization of your object. You can optionally specify two
 parameters:
 
-C<pretty> - I<bool> - defaults to false - that specifies if you'd like your JSON
+C<pretty> - I<bool> - defaults to false - that specifies if you'd like your Javascript
 spread-apart with whitespace. Useful for debugging.
 
 C<columns> - I<array-ref of strings> - pick out certain columns only (and in the
 order you specify). If you don't provide an argument here, we'll use them all
 and in the order set in C<add_columns>.
 
+=head2 output_json
+
+An alias to C<output_javascript> above, with a very misleading name, as it outputs
+Javascript, not JSON - see L<JSON vs Javascript> below.
+
 =cut
 
-sub output_json {
+sub output_json { my ( $self, %params ) = @_; $self->output_javascript( %params ) }
+
+sub output_javascript {
 	my ($self, %params) = @_;
 
 	my ($columns, $rows) = $self->_select_data( %params );
@@ -661,6 +668,17 @@ sub _encode_properties {
 	my ( $self, $properties ) = @_;
 	return $self->json_xs_object->encode( $properties );
 }
+
+=head1 JSON vs Javascript
+
+Please note this module outputs Javascript, and not JSON. JSON is a subset of Javascript,
+and Google's API requires a similar - but different - subset of Javascript. Specifically
+some values need to be set to native Javascript objects, such as (and currently limited to)
+the Date object. That means we output code like:
+
+ {"v":new Date( 2011, 2, 21, 2, 6, 25 )}
+
+which is valid Javascript, but not valid JSON.
 
 =head1 BUG BOUNTY
 

@@ -15,3 +15,4 @@ t/030_handle_undef.t
 t/040_properties.t
 t/release-pod-coverage.t
 t/release-pod-syntax.t
+twitter.html
