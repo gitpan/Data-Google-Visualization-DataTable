@@ -22,7 +22,7 @@ my %WriteMakefileArgs = (
   'PREREQ_PM' => {
     'JSON::XS' => '2.0'
   },
-  'VERSION' => '0.08',
+  'VERSION' => '0.09',
   'test' => {
     'TESTS' => 't/*.t'
   }
